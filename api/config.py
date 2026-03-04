@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # server
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    port: int = 8000  # Railway sets PORT env var
 
     # translation
     translation_cache_ttl: int = 3600

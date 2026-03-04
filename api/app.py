@@ -118,10 +118,12 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
+    # Railway/Fly set PORT env var
+    port = int(os.getenv("PORT", settings.api_port))
     uvicorn.run(
         "api.app:app",
-        host=settings.api_host,
-        port=settings.api_port,
+        host="0.0.0.0",
+        port=port,
         reload=True,
         log_level=settings.log_level,
     )
