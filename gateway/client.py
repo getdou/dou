@@ -71,7 +71,7 @@ class DouyinClient:
 
             self._client = httpx.AsyncClient(
                 timeout=self.timeout,
-                http2=True,
+                http2=False,
                 follow_redirects=True,
                 limits=httpx.Limits(
                     max_connections=100,

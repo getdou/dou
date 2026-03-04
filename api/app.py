@@ -10,28 +10,30 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
+import traceback
 from contextlib import asynccontextmanager
 
-import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
-from gateway import DouyinClient, DeviceAuth
-from translate import TranslationEngine
-from api.config import settings
-from api.middleware import RateLimitMiddleware, ErrorHandlerMiddleware
-from api.routes import feed, video, user, translate as translate_routes
-from api.ws import router as ws_router
-
-# configure logging
+# configure logging first — no fancy imports needed
 logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("dou")
+
+
+# ---- lazy config loading (avoid crashing if pydantic-settings is missing) ----
+def _load_settings():
+    try:
+        from api.config import settings
+        return settings
+    except Exception as exc:
+        logger.warning("Could not load settings: %s — using defaults", exc)
+        return None
 
 
 @asynccontextmanager
@@ -39,59 +41,50 @@ async def lifespan(app: FastAPI):
     """Initialize shared services on startup, cleanup on shutdown."""
     logger.info("starting dou...")
 
+    settings = _load_settings()
     client = None
     translator = None
 
+    # try to init gateway
     try:
-        # initialize gateway
+        from gateway import DouyinClient, DeviceAuth
         auth = DeviceAuth(
-            device_id=settings.douyin_device_id or None,
-            proxy=settings.proxy_url or None,
+            device_id=(settings.douyin_device_id if settings else "") or None,
+            proxy=(settings.proxy_url if settings else "") or None,
         )
         client = DouyinClient(auth=auth)
-
-        device_id_preview = (auth.fingerprint.device_id[:12] + "...") if auth.fingerprint.device_id else "generated"
+        device_preview = (auth.fingerprint.device_id[:12] + "...") if auth.fingerprint.device_id else "new"
+        logger.info("Gateway initialized: device=%s", device_preview)
     except Exception as exc:
-        logger.warning("Gateway init failed (will work without it): %s", exc)
-        client = None
-        device_id_preview = "FAILED"
+        logger.warning("Gateway init failed: %s", exc)
+        logger.debug(traceback.format_exc())
 
+    # try to init translation engine
     try:
-        # initialize translation engine
+        from translate import TranslationEngine
         translator = TranslationEngine(
-            api_key=settings.deepseek_api_key,
-            model=settings.deepseek_model,
-            redis_url=settings.redis_url,
-            cache_ttl=settings.translation_cache_ttl,
+            api_key=(settings.deepseek_api_key if settings else "") or "",
+            model=(settings.deepseek_model if settings else "deepseek-chat"),
+            redis_url=(settings.redis_url if settings else "redis://localhost:6379"),
+            cache_ttl=(settings.translation_cache_ttl if settings else 3600),
         )
+        logger.info("Translation engine initialized")
     except Exception as exc:
         logger.warning("Translation engine init failed: %s", exc)
-        translator = None
 
-    # store on app state for route access
     app.state.douyin_client = client
     app.state.translator = translator
-
-    logger.info(
-        "dou ready - device=%s, deepseek=%s, redis=%s",
-        device_id_preview,
-        "configured" if settings.deepseek_api_key else "NOT SET",
-        settings.redis_url,
-    )
+    logger.info("dou ready")
 
     yield
 
     # cleanup
-    if client:
-        try:
-            await client.close()
-        except Exception:
-            pass
-    if translator:
-        try:
-            await translator.close()
-        except Exception:
-            pass
+    for svc in (client, translator):
+        if svc and hasattr(svc, "close"):
+            try:
+                await svc.close()
+            except Exception:
+                pass
     logger.info("dou stopped")
 
 
@@ -106,12 +99,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
 
-    # middleware (order matters — outermost first)
-    app.add_middleware(ErrorHandlerMiddleware)
-    app.add_middleware(
-        RateLimitMiddleware,
-        rpm=settings.rate_limit_rpm,
-    )
+    # CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -120,21 +108,16 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # health check (Railway uses this)
-    @app.get("/health")
-    async def health():
-        return {"status": "ok", "service": "dou"}
+    # try to add custom middleware
+    try:
+        from api.middleware import RateLimitMiddleware, ErrorHandlerMiddleware
+        settings = _load_settings()
+        app.add_middleware(ErrorHandlerMiddleware)
+        app.add_middleware(RateLimitMiddleware, rpm=settings.rate_limit_rpm if settings else 120)
+    except Exception as exc:
+        logger.warning("Could not load middleware: %s", exc)
 
-    # API routes
-    app.include_router(feed.router, prefix="/api/feed", tags=["feed"])
-    app.include_router(video.router, prefix="/api/video", tags=["video"])
-    app.include_router(user.router, prefix="/api/user", tags=["user"])
-    app.include_router(
-        translate_routes.router, prefix="/api/translate", tags=["translate"]
-    )
-    app.include_router(ws_router, prefix="/ws", tags=["websocket"])
-
-    # root redirect to web UI or health
+    # ---- always-available endpoints ----
     @app.get("/")
     async def root():
         web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
@@ -144,14 +127,48 @@ def create_app() -> FastAPI:
         return {
             "name": "dou",
             "description": "Open access to Douyin. No VPN. No censorship.",
+            "version": "0.2.0",
             "docs": "/docs",
             "health": "/health",
         }
 
-    # serve web UI static assets (CSS, JS, images)
-    web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
-    if os.path.isdir(web_dir):
-        app.mount("/static", StaticFiles(directory=web_dir), name="web-static")
+    @app.get("/health")
+    async def health():
+        return {
+            "status": "ok",
+            "service": "dou",
+            "gateway": app.state.douyin_client is not None if hasattr(app.state, "douyin_client") else False,
+            "translator": app.state.translator is not None if hasattr(app.state, "translator") else False,
+        }
+
+    # ---- try to mount API routes (may fail if deps are broken) ----
+    try:
+        from api.routes import feed, video, user, translate as translate_routes
+        app.include_router(feed.router, prefix="/api/feed", tags=["feed"])
+        app.include_router(video.router, prefix="/api/video", tags=["video"])
+        app.include_router(user.router, prefix="/api/user", tags=["user"])
+        app.include_router(translate_routes.router, prefix="/api/translate", tags=["translate"])
+        logger.info("API routes loaded")
+    except Exception as exc:
+        logger.warning("Could not load API routes: %s", exc)
+        logger.debug(traceback.format_exc())
+
+    # ---- try to mount websocket ----
+    try:
+        from api.ws import router as ws_router
+        app.include_router(ws_router, prefix="/ws", tags=["websocket"])
+    except Exception as exc:
+        logger.warning("Could not load WebSocket routes: %s", exc)
+
+    # ---- serve web UI static assets ----
+    try:
+        from fastapi.staticfiles import StaticFiles
+        web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
+        if os.path.isdir(web_dir):
+            app.mount("/static", StaticFiles(directory=web_dir), name="web-static")
+            logger.info("Static files mounted from %s", web_dir)
+    except Exception as exc:
+        logger.warning("Could not mount static files: %s", exc)
 
     return app
 
@@ -159,12 +176,6 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
-    # Railway/Fly set PORT env var
-    port = int(os.getenv("PORT", settings.api_port))
-    uvicorn.run(
-        "api.app:app",
-        host="0.0.0.0",
-        port=port,
-        reload=True,
-        log_level=settings.log_level,
-    )
+    import uvicorn
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("api.app:app", host="0.0.0.0", port=port, log_level="info")
