@@ -163,9 +163,12 @@ class DeviceAuth:
             # try to load persisted device, else generate new
             try:
                 self.fingerprint = DeviceFingerprint.load()
-            except (FileNotFoundError, json.JSONDecodeError):
+            except (FileNotFoundError, json.JSONDecodeError, OSError):
                 self.fingerprint = DeviceFingerprint()
-                self.fingerprint.save()
+                try:
+                    self.fingerprint.save()
+                except OSError:
+                    pass  # read-only filesystem (Railway, Docker, etc.)
 
         self.proxy = proxy or os.getenv("PROXY_URL", "")
         self._session_id = hashlib.md5(
@@ -358,7 +361,10 @@ class DeviceAuth:
                     self.fingerprint.device_id = str(new_did)
                 if new_iid:
                     self.fingerprint.install_id = str(new_iid)
-                self.fingerprint.save()
+                try:
+                    self.fingerprint.save()
+                except OSError:
+                    pass  # read-only filesystem
                 return True
         except Exception:
             pass

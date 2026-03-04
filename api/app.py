@@ -39,20 +39,34 @@ async def lifespan(app: FastAPI):
     """Initialize shared services on startup, cleanup on shutdown."""
     logger.info("starting dou...")
 
-    # initialize gateway
-    auth = DeviceAuth(
-        device_id=settings.douyin_device_id or None,
-        proxy=settings.proxy_url or None,
-    )
-    client = DouyinClient(auth=auth)
+    client = None
+    translator = None
 
-    # initialize translation engine
-    translator = TranslationEngine(
-        api_key=settings.deepseek_api_key,
-        model=settings.deepseek_model,
-        redis_url=settings.redis_url,
-        cache_ttl=settings.translation_cache_ttl,
-    )
+    try:
+        # initialize gateway
+        auth = DeviceAuth(
+            device_id=settings.douyin_device_id or None,
+            proxy=settings.proxy_url or None,
+        )
+        client = DouyinClient(auth=auth)
+
+        device_id_preview = (auth.fingerprint.device_id[:12] + "...") if auth.fingerprint.device_id else "generated"
+    except Exception as exc:
+        logger.warning("Gateway init failed (will work without it): %s", exc)
+        client = None
+        device_id_preview = "FAILED"
+
+    try:
+        # initialize translation engine
+        translator = TranslationEngine(
+            api_key=settings.deepseek_api_key,
+            model=settings.deepseek_model,
+            redis_url=settings.redis_url,
+            cache_ttl=settings.translation_cache_ttl,
+        )
+    except Exception as exc:
+        logger.warning("Translation engine init failed: %s", exc)
+        translator = None
 
     # store on app state for route access
     app.state.douyin_client = client
@@ -60,7 +74,7 @@ async def lifespan(app: FastAPI):
 
     logger.info(
         "dou ready - device=%s, deepseek=%s, redis=%s",
-        auth.fingerprint.device_id[:12] + "...",
+        device_id_preview,
         "configured" if settings.deepseek_api_key else "NOT SET",
         settings.redis_url,
     )
@@ -68,8 +82,16 @@ async def lifespan(app: FastAPI):
     yield
 
     # cleanup
-    await client.close()
-    await translator.close()
+    if client:
+        try:
+            await client.close()
+        except Exception:
+            pass
+    if translator:
+        try:
+            await translator.close()
+        except Exception:
+            pass
     logger.info("dou stopped")
 
 
@@ -98,6 +120,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # health check (Railway uses this)
+    @app.get("/health")
+    async def health():
+        return {"status": "ok", "service": "dou"}
+
     # API routes
     app.include_router(feed.router, prefix="/api/feed", tags=["feed"])
     app.include_router(video.router, prefix="/api/video", tags=["video"])
@@ -107,10 +134,24 @@ def create_app() -> FastAPI:
     )
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
-    # serve web UI as static files (fallback)
+    # root redirect to web UI or health
+    @app.get("/")
+    async def root():
+        web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
+        if os.path.isdir(web_dir) and os.path.isfile(os.path.join(web_dir, "index.html")):
+            from fastapi.responses import FileResponse
+            return FileResponse(os.path.join(web_dir, "index.html"))
+        return {
+            "name": "dou",
+            "description": "Open access to Douyin. No VPN. No censorship.",
+            "docs": "/docs",
+            "health": "/health",
+        }
+
+    # serve web UI static assets (CSS, JS, images)
     web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
     if os.path.isdir(web_dir):
-        app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
+        app.mount("/static", StaticFiles(directory=web_dir), name="web-static")
 
     return app
 
