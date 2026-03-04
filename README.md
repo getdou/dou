@@ -171,7 +171,9 @@ plus a custom slang dictionary (80+ entries) for terms that even deepseek occasi
 
 ## status
 
-**alpha** — gateway and translation working. web UI functional. API stable on devnet. actively improving signature generation and adding more feed types.
+**alpha — still experimenting.** this project is under active development and is not fully finished yet. core gateway and translation are working, web UI is functional, API is stable. we're actively improving signature generation, adding more feed types, and squashing edge cases.
+
+**coming soon: wechat integration.** same concept — unrestricted access to wechat moments, channels, and articles from anywhere in the world. no chinese phone number required. no restrictions. currently in early development.
 
 ---
 
