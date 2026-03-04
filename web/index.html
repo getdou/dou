@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dòu — open douyin</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <span class="logo-cn">豆</span>
+            <span class="logo-en">dòu</span>
+        </div>
+        <div class="search-bar">
+            <input type="text" id="search-input" placeholder="search douyin in english or chinese..." autocomplete="off">
+            <button id="search-btn" aria-label="Search">搜</button>
+        </div>
+        <nav>
+            <a href="#" class="nav-link active" data-feed="trending">trending</a>
+            <a href="#" class="nav-link" data-feed="hot">hot search</a>
+        </nav>
+    </header>
+
+    <main>
+        <div id="hot-tags" class="hot-tags" style="display:none;"></div>
+        <div id="feed" class="feed-grid"></div>
+        <div id="loading" class="loading" style="display:none;">
+            <div class="spinner"></div>
+        </div>
+        <div id="empty" class="empty" style="display:none;">
+            <p>no videos found</p>
+        </div>
+    </main>
+
+    <div id="video-modal" class="modal" style="display:none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button class="modal-close" aria-label="Close">&times;</button>
+            <div class="modal-video-wrap">
+                <video id="modal-video" controls playsinline></video>
+            </div>
+            <div id="modal-info" class="modal-info"></div>
+            <div id="modal-comments" class="modal-comments"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
