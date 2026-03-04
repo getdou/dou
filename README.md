@@ -201,4 +201,4 @@ or just star the repo. that helps too.
 
 ---
 
-[@getdou](https://twitter.com/getdou)
+[getdou.xyz](https://getdou.xyz) · [@getdou](https://twitter.com/getdou)
