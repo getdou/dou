@@ -187,6 +187,16 @@ use responsibly and in accordance with applicable laws in your jurisdiction.
 
 ---
 
+## $dou token lock
+
+3.8% of $dou supply locked for 1 year via streamflow:
+
+[view lock contract](https://app.streamflow.finance/contract/solana/mainnet/9T6uwdveyX1T5GPW5nZjdf784A7r3XWaggiZ9TVv7xxa)
+
+this is not financial advice. $dou is an experiment — i am just building in public and seeing where this goes.
+
+---
+
 ## support the project
 
 dòu is free and open source. if you find it useful, consider supporting development:
