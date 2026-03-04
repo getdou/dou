@@ -171,7 +171,7 @@ plus a custom slang dictionary (80+ entries) for terms that even deepseek occasi
 
 ## status
 
-**alpha — still experimenting.** this project is under active development and is not fully finished yet. core gateway and translation are working, web UI is functional, API is stable. we're actively improving signature generation, adding more feed types, and squashing edge cases.
+**alpha — still experimenting.** this is a side project i work on in my free time. it is not fully finished yet. core gateway and translation are working, web UI is functional, API is stable. actively improving signature generation, adding more feed types, and squashing edge cases.
 
 **coming soon: wechat integration.** same concept — unrestricted access to wechat moments, channels, and articles from anywhere in the world. no chinese phone number required. no restrictions. currently in early development.
 
