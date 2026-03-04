@@ -193,7 +193,7 @@ dòu is free and open source. if you find it useful, consider supporting develop
 
 | currency | address |
 |----------|---------|
-| **SOL** | `getdou.sol` |
+| **SOL** | `CLxN8GvFXxuFadfSMC8gLnMYNNXDyuhHT9P8JeS5DDm` |
 | **ETH** | `0x21e14dad93B42FEA00E9d5108C743f4885902B14` |
 | **BTC** | `bc1q4nmu5h7ghy8ap5nlu0zv70xv887yefay3lf77l` |
 
