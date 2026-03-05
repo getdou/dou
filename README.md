@@ -187,9 +187,15 @@ use responsibly and in accordance with applicable laws in your jurisdiction.
 
 ---
 
-## $dou token lock
+## $dou — official token
 
-3.8% of $dou supply locked for 1 year via streamflow:
+**CA:** `7M8zEZuDik7gLzf4YnG2DKr3Be3rMrQjWNeE4o5ZprKw`
+
+$dou is the official token for the getdou project. it exists to raise awareness for [getdou.xyz](https://getdou.xyz) and to fund the development of more tools — better translation models, wechat integration, mobile apps, and infrastructure costs.
+
+100% of proceeds go back into building dòu into a better product.
+
+**token lock:** 3.8% of supply locked for 1 year via streamflow:
 
 [view lock contract](https://app.streamflow.finance/contract/solana/mainnet/9T6uwdveyX1T5GPW5nZjdf784A7r3XWaggiZ9TVv7xxa)
 
